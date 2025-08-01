@@ -1,12 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import {
   Memo,
   MemoFormData,
   MEMO_CATEGORIES,
   DEFAULT_CATEGORIES,
 } from '@/types/memo'
+
+// MDEditor를 동적으로 import하여 SSR 문제 해결
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-[300px] border border-gray-300 rounded-lg">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">에디터 로딩 중...</span>
+      </div>
+    ),
+  }
+)
 
 interface MemoFormProps {
   isOpen: boolean
@@ -28,6 +43,7 @@ export default function MemoForm({
     tags: [],
   })
   const [tagInput, setTagInput] = useState('')
+  const editorRef = useRef<HTMLDivElement>(null)
 
   // 편집 모드일 때 폼 데이터 설정
   useEffect(() => {
@@ -48,6 +64,26 @@ export default function MemoForm({
     }
     setTagInput('')
   }, [editingMemo, isOpen])
+
+  // 에디터 텍스트 색상 강제 설정
+  useEffect(() => {
+    if (isOpen && editorRef.current) {
+      const timer = setTimeout(() => {
+        const textareas = editorRef.current?.querySelectorAll('textarea')
+        textareas?.forEach(textarea => {
+          textarea.style.color = '#111827'
+          textarea.style.webkitTextFillColor = '#111827'
+        })
+        
+        const editableElements = editorRef.current?.querySelectorAll('[contenteditable="true"]')
+        editableElements?.forEach(element => {
+          (element as HTMLElement).style.color = '#111827'
+        })
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, formData.content])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,28 +204,39 @@ export default function MemoForm({
               </select>
             </div>
 
-            {/* 내용 */}
+            {/* 내용 - 마크다운 에디터 */}
             <div>
-              <label
-                htmlFor="content"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                내용 *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                내용 * (마크다운 지원)
               </label>
-              <textarea
-                id="content"
-                value={formData.content}
-                onChange={e =>
-                  setFormData(prev => ({
-                    ...prev,
-                    content: e.target.value,
-                  }))
-                }
-                className="placeholder-gray-400 text-gray-400 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
-                placeholder="메모 내용을 입력하세요"
-                rows={8}
-                required
-              />
+              <div ref={editorRef} className="border border-gray-300 rounded-lg overflow-hidden">
+                <MDEditor
+                  value={formData.content}
+                  onChange={(value) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      content: value || '',
+                    }))
+                  }
+                  data-color-mode="light"
+                  preview="edit"
+                  height={300}
+                  textareaProps={{
+                    placeholder: '메모 내용을 마크다운으로 작성하세요...\n\n예시:\n# 제목\n## 부제목\n- 목록 항목\n**굵은 글씨**\n*기울임체*\n`코드`',
+                    style: {
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Monaco, Consolas, monospace',
+                      color: '#111827',
+                      backgroundColor: '#ffffff',
+                      WebkitTextFillColor: '#111827',
+                    },
+                  }}
+                />
+              </div>
+              {!formData.content.trim() && (
+                <p className="text-red-500 text-sm mt-1">내용을 입력해주세요.</p>
+              )}
             </div>
 
             {/* 태그 */}

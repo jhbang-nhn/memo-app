@@ -1,0 +1,1 @@
+// 이 파일은 사용하지 않음 - client.ts와 server.ts로 분리
